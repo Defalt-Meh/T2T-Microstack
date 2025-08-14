@@ -1,0 +1,93 @@
+name: T2T-Microstack CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test-perf:
+    name: Build, Unit Tests, Perf Smoke
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install deps (Python)
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Python deps
+      run: |
+        python -m pip install -U pip
+        python -m pip install matplotlib pandas
+
+    - name: Configure
+      run: cmake -S . -B build
+
+    - name: Build
+      run: cmake --build build -j
+
+    - name: Unit tests
+      run: (cd build && ctest --output-on-failure)
+
+    - name: Perf smoke feed (100k)
+      run: |
+        python tools/gen_synth_feed.py --out feed.csv --n 100000 --seed 7
+
+    - name: Run t2t_main (heuristic)
+      run: |
+        ./build/t2t_main \
+          --replay feed.csv \
+          --results out1.csv \
+          --latency latency1.csv \
+          --histo hist1.csv \
+          --warmup 200 \
+          --max-msgs 100000 \
+          --mode heuristic
+
+    - name: Run t2t_main again (determinism check)
+      run: |
+        ./build/t2t_main \
+          --replay feed.csv \
+          --results out2.csv \
+          --latency latency2.csv \
+          --histo hist2.csv \
+          --warmup 200 \
+          --max-msgs 100000 \
+          --mode heuristic
+
+    - name: Determinism (byte diff)
+      run: |
+        python tools/diff_runs.py out1.csv out2.csv
+
+    - name: Latency gate
+      run: |
+        python - << 'PY'
+        import pandas as pd, sys
+        df = pd.read_csv('latency1.csv')
+        e2e = df[df['stage']=='e2e']['ns'] / 1000.0 # us
+        if e2e.empty:
+            print("No e2e samples!", file=sys.stderr); sys.exit(1)
+        p50 = e2e.quantile(0.50); p99 = e2e.quantile(0.99)
+        # Gate: target p50<=20us, p99<=80us with +20% slack
+        ok = (p50 <= 24.0) and (p99 <= 96.0)
+        print(f"e2e p50={p50:.2f}us p99={p99:.2f}us  gate={'OK' if ok else 'FAIL'}")
+        sys.exit(0 if ok else 2)
+        PY
+
+    - name: Upload artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: perf-artifacts-${{ matrix.os }}
+        path: |
+          out1.csv
+          out2.csv
+          latency1.csv
+          latency2.csv
+          hist1.csv
+          hist2.csv

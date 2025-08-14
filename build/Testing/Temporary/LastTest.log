@@ -1,0 +1,19 @@
+Start testing: Aug 15 02:25 +03
+----------------------------------------------------------
+1/1 Testing: unit_tests
+1/1 Test: unit_tests
+Command: "/Users/mehmetaltunoren/Desktop/QUANT/T2T-Microstack/build/unit_tests"
+Directory: /Users/mehmetaltunoren/Desktop/QUANT/T2T-Microstack/build
+"unit_tests" start time: Aug 15 02:25 +03
+Output:
+----------------------------------------------------------
+unit tests: OK
+<end of output>
+Test time =   0.67 sec
+----------------------------------------------------------
+Test Passed.
+"unit_tests" end time: Aug 15 02:25 +03
+"unit_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Aug 15 02:25 +03
